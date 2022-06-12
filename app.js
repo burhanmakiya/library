@@ -19,65 +19,34 @@ app.get("/books", async (req, res) => {
   const queryInput = req.query;
   const allBooks = await bookModel.find(queryInput);
   const jsAllBooks = JSON.parse(JSON.stringify(allBooks));
-  const joinedBooksList = await mongoose.model("examplarModel").aggregate([
+  //to Join and filter the rent and exemplar Lists to have only "Active rent" Exemplar
+  const joinedBooksList = await mongoose.model("rentExemplarModel").aggregate([
+    { $match: { rentActive: true } },
     {
       $lookup: {
-        from: "rentexemplarmodels",
-        localField: "_id",
-        foreignField: "bookExemplarID",
+        from: "examplarmodels",
+        localField: "bookExemplarID",
+        foreignField: "_id",
         as: "result",
       },
     },
   ]);
-
+  //to calculate how many activ Exemplar in rent
+  // count2: is the number of the rented exemplar
   for (let index = 0; index < jsAllBooks.length; index++) {
     let element = jsAllBooks[index];
-    if (joinedBooksList[index].result.length == 1) {
-      if (joinedBooksList[index].result[0].rentActive == true) {
-        let count = await examplarModel.count({ book: element._id });
-        jsAllBooks[index].available = count - 1;
-      } else {
-        let count = await examplarModel.count({ book: element._id });
-        jsAllBooks[index].available = count;
+    let count2 = 0;
+    joinedBooksList.forEach((element2) => {
+      if (element._id == element2.result[0].book) {
+        count2++;
       }
-    } else {
-      let count = await examplarModel.count({ book: element._id });
-      jsAllBooks[index].available = count;
-    }
+    });
+    //to count how many Exemplar ready to rent
+    //count : number of Exemplar in general
+    let count = (await examplarModel.count({ book: element._id })) - count2;
+    jsAllBooks[index].available = count;
   }
-
   res.send(jsAllBooks);
-  // const queryInput = req.query;
-  // const allBooks = await bookModel.find(queryInput);
-  // const jsAllBooks = JSON.parse(JSON.stringify(allBooks));
-  // const joinedBooksList = await mongoose.model("examplarModel").aggregate([
-  //   {
-  //     $lookup: {
-  //       from: "rentexemplarmodels",
-  //       localField: "_id",
-  //       foreignField: "bookExemplarID",
-  //       as: "result",
-  //     },
-  //   },
-  // ]);
-
-  // for (let index = 0; index < jsAllBooks.length; index++) {
-  //   let element = jsAllBooks[index];
-  //   if (joinedBooksList[index].result.length == 1) {
-  //     if (joinedBooksList[index].result[0].rentActive == true) {
-  //       let count = await examplarModel.count({ book: element._id });
-  //       jsAllBooks[index].available = count - 1;
-  //     } else {
-  //       let count = await examplarModel.count({ book: element._id });
-  //       jsAllBooks[index].available = count;
-  //     }
-  //   } else {
-  //     let count = await examplarModel.count({ book: element._id });
-  //     jsAllBooks[index].available = count;
-  //   }
-  // }
-
-  // res.send(jsAllBooks);
 });
 /********************************************************************/
 //to add a new book
@@ -88,11 +57,11 @@ app.post("/books", async (req, res) => {
     title: req.body.title,
     numberOfPages: req.body.numberOfPages,
   });
-  //to find if the inPut already exists
+  //to check if the inPut already exists
   const isAlreadyAdded = await bookModel.find({
     author: newSchemaBook.author,
     releaseDate: newSchemaBook.releaseDate,
-    title2: newSchemaBook.title,
+    title: newSchemaBook.title,
     numberOfPages: newSchemaBook.numberOfPages,
   });
   if (Object.keys(isAlreadyAdded).length === 0) {
@@ -104,30 +73,40 @@ app.post("/books", async (req, res) => {
 });
 /********************************************************************/
 // to remove a Book
-app.delete("/book/:id", (req, res) => {
-  bookModel.deleteOne({ _id: req.params.id }, async (error) => {
-    if (error) {
-      res.status(404).send("the ID is not valid");
-    } else {
-      const allBooks = await bookModel.find();
-      res.send(allBooks);
-    }
-  });
+app.delete("/book/:id", async function (req, res) {
+  const deletedElemet = await bookModel.findByIdAndDelete(req.params.id);
+  if (deletedElemet == null) {
+    res.status(404).send("the ID invalid");
+  } else {
+    res.status(200).send("Deleted");
+  }
 });
 /********************************************************************/
 //to edit a book
 app.put("/book/:id", function (req, res) {
-  bookModel.updateOne(
-    { _id: req.params.id },
-    { ...req.body },
-    async (error) => {
-      if (error) {
-        res.status(404).send("the ID is not valid");
-      } else {
-        res.send("The Book has been successfully edited.");
-      }
+  const bodyInput = req.body;
+  //to check if the ID is valid
+  bookModel.findById(req.params.id, function (error, checker) {
+    if (error) {
+      res.status(404).send("the ID is not valid");
+    } else {
+      //to join the req.body with the founded object
+      const mergedObjects = Object.assign(checker, bodyInput);
+      //to check if the Joined object is already exists
+      // if exists the Update will be canceld
+      bookModel.find(mergedObjects, "-_id").then(function (result) {
+        if (result.length == 0) {
+          bookModel
+            .updateOne({ _id: req.params.id }, { ...req.body })
+            .then(function (result) {
+              res.status(202).send("Updated");
+            });
+        } else {
+          res.status(404).send("already exists");
+        }
+      });
     }
-  );
+  });
 });
 /********************************************************************/
 /********************************************************************/
@@ -160,6 +139,11 @@ app.post("/rent", async (req, res) => {
     rentDate: new Date(),
     rentActive: true,
   });
+  await examplarModel.updateOne(
+    { _id: req.body.bookExemplarID },
+    { rentActive: true }
+  );
+
   rentExemplar.save();
   res.send("Thank you for renting");
 });
@@ -174,9 +158,27 @@ app.get("/rent", async (req, res) => {
 //to end the Rent
 app.post("/rent/end", async (req, res) => {
   const rendID = { RendtID: req.body.RentID }.RendtID;
+  const rendProfile = await rentExemplarModel.find({ _id: rendID });
+
   rentExemplarModel.updateOne({ _id: rendID }, { rentActive: false }).then(
-    () => res.send("the Rent is ended successfully"),
-    () => res.send("the ID is False")
+    () =>
+      examplarModel
+        .updateOne(
+          { _id: rendProfile[0].bookExemplarID },
+          { rentActive: false }
+        )
+
+        .then(
+          () => {
+            res.send("the rent has been ended successfully");
+          },
+          () => {
+            res.send("the rent has not ended in the Exemplar");
+          }
+        ),
+    () => {
+      res.send("the rent has not ended in the rent profile");
+    }
   );
 });
 /********************************************************************/
