@@ -1,6 +1,6 @@
 import express from "express";
 import mongoose from "mongoose";
-import _ from "underscore";
+import _, { result } from "underscore";
 import {
   bookModel,
   examplarModel,
@@ -57,31 +57,31 @@ app.post("/books", (req, res) => {
   const reqBodyInput = new bookModel({ ...req.body });
   //to search if the Book is already exists
   //if the Book is already exists the Adding prossses will stop
-  bookModel.find(req.body).then((newBook) => {
-    //if the result from find empty, the new Book will be added after checking if all field are present
-    if (Object.keys(newBook).length === 0) {
-      reqBodyInput.save().then(
-        () => {
-          res.send("The book has been successfully added");
-        },
-        () => {
-          res.status(404).send("cheack the Input");
-        }
-      );
+  bookModel.find(req.body, (err, result) => {
+    if (err) {
+      res.status(404).send(err.message);
+    } else if (result.length == 0) {
+      reqBodyInput
+        .save()
+        .then(() => res.status(200).send("added successfully"))
+        .catch((err) => res.status(404).send(err.message));
     } else {
-      res.status(404).send("the book is already added");
+      res.status(404).send("already added");
     }
   });
 });
 /********************************************************************/
 // to remove a Book
-app.delete("/book/:id", async function (req, res) {
-  const deletedElemet = await bookModel.findByIdAndDelete(req.params.id);
-  if (deletedElemet == null) {
-    res.status(404).send("the ID invalid");
-  } else {
-    res.status(200).send("Deleted");
-  }
+app.delete("/book/:id", (req, res) => {
+  bookModel.findByIdAndDelete(req.params.id, (err, removeResult) => {
+    if (err) {
+      res.status(404).send(err.message);
+    } else if (removeResult == null) {
+      res.status(404).send("ID not found");
+    } else {
+      res.status(200).send("deleted");
+    }
+  });
 });
 /********************************************************************/
 //to edit a book
