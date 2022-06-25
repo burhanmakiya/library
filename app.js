@@ -73,13 +73,23 @@ app.post("/books", (req, res) => {
 /********************************************************************/
 // to remove a Book
 app.delete("/book/:id", (req, res) => {
-  bookModel.findByIdAndDelete(req.params.id, (err, removeResult) => {
+  // check if the Book has exemplars
+  // if not, then remove it
+  examplarModel.find({ book: req.params.id }, (err, resultFindEx) => {
     if (err) {
       res.status(404).send(err.message);
-    } else if (removeResult == null) {
-      res.status(404).send("ID not found");
+    } else if (resultFindEx.length == 0) {
+      bookModel.findByIdAndDelete(req.params.id, (err, removeResult) => {
+        if (err) {
+          res.status(404).send(err.message);
+        } else if (removeResult == null) {
+          res.status(404).send("ID not found");
+        } else {
+          res.status(200).send("deleted");
+        }
+      });
     } else {
-      res.status(200).send("deleted");
+      res.status(404).send("the Book has Exemplar");
     }
   });
 });
@@ -139,6 +149,19 @@ app.get("/exemplar", (req, res) => {
       res.status(404).send(err.message);
     } else {
       res.status(200).send(result);
+    }
+  });
+});
+/************************************************************/
+//to remove Exemplar
+app.delete("/exemplar/:id", (req, res) => {
+  examplarModel.findByIdAndDelete(req.params.id, (err, removeResult) => {
+    if (err) {
+      res.status(404).send(err.message);
+    } else if (removeResult == null) {
+      res.status(404).send("ID not found");
+    } else {
+      res.status(200).send("deleted");
     }
   });
 });
