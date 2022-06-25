@@ -1,5 +1,6 @@
 import express from "express";
 import mongoose from "mongoose";
+import _ from "underscore";
 import {
   bookModel,
   examplarModel,
@@ -31,8 +32,9 @@ app.get("/books", async (req, res) => {
       },
     },
   ]);
+
   //to calculate how many activ Exemplar in rent
-  // count2: is the number of the rented exemplar
+  // count2: the number of the rented exemplars
   for (let index = 0; index < jsAllBooks.length; index++) {
     let element = jsAllBooks[index];
     let count2 = 0;
@@ -50,26 +52,26 @@ app.get("/books", async (req, res) => {
 });
 /********************************************************************/
 //to add a new book
-app.post("/books", async (req, res) => {
-  const newSchemaBook = new bookModel({
-    author: req.body.author,
-    releaseDate: req.body.releaseDate,
-    title: req.body.title,
-    numberOfPages: req.body.numberOfPages,
+app.post("/books", (req, res) => {
+  //to save the Input in a Schema Model
+  const reqBodyInput = new bookModel({ ...req.body });
+  //to search if the Book is already exists
+  //if the Book is already exists the Adding prossses will stop
+  bookModel.find(req.body).then((newBook) => {
+    //if the result from find empty, the new Book will be added after checking if all field are present
+    if (Object.keys(newBook).length === 0) {
+      reqBodyInput.save().then(
+        () => {
+          res.send("The book has been successfully added");
+        },
+        () => {
+          res.status(404).send("cheack the Input");
+        }
+      );
+    } else {
+      res.status(404).send("the book is already added");
+    }
   });
-  //to check if the inPut already exists
-  const isAlreadyAdded = await bookModel.find({
-    author: newSchemaBook.author,
-    releaseDate: newSchemaBook.releaseDate,
-    title: newSchemaBook.title,
-    numberOfPages: newSchemaBook.numberOfPages,
-  });
-  if (Object.keys(isAlreadyAdded).length === 0) {
-    newSchemaBook.save();
-    res.send("The book has been successfully added");
-  } else {
-    res.send("Unfortunately, the book has already been added");
-  }
 });
 /********************************************************************/
 // to remove a Book
@@ -86,27 +88,35 @@ app.delete("/book/:id", async function (req, res) {
 app.put("/book/:id", function (req, res) {
   const bodyInput = req.body;
   //to check if the ID is valid
-  bookModel.findById(req.params.id, function (error, checker) {
-    if (error) {
-      res.status(404).send("the ID is not valid");
-    } else {
-      //to join the req.body with the founded object
-      const mergedObjects = Object.assign(checker, bodyInput);
-      //to check if the Joined object is already exists
-      // if exists the Update will be canceld
-      bookModel.find(mergedObjects, "-_id").then(function (result) {
-        if (result.length == 0) {
-          bookModel
-            .updateOne({ _id: req.params.id }, { ...req.body })
-            .then(function (result) {
-              res.status(202).send("Updated");
-            });
-        } else {
-          res.status(404).send("already exists");
-        }
-      });
-    }
-  });
+  bookModel
+    .find({ _id: req.params.id })
+    .then(
+      (result) => {
+        // to join the inPut with the Target object
+        let mergedObjects = JSON.parse(
+          JSON.stringify(_.extend(result[0], bodyInput))
+        );
+        delete mergedObjects._id; // to remove the ID
+        bookModel.find(mergedObjects).then((result) => {
+          if (result.length == 0) {
+            bookModel
+              .updateOne({ _id: req.params.id }, { ...req.body })
+              .then(() => {
+                res.status(200).send("updatetd");
+              });
+          } else {
+            res.status(404).send("already exists");
+          }
+        });
+      },
+      (err) => {
+        console.log(err);
+        res.send(err.message);
+      }
+    )
+    .catch((er) => {
+      res.status(404).send(er.message);
+    });
 });
 /********************************************************************/
 /********************************************************************/
