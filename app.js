@@ -123,7 +123,7 @@ app.put("/book/:id", function (req, res) {
 /********************************************************************/
 /**********************Exemplar**************************************/
 // to add an Exemplar
-app.post("/exemplar", async (req, res) => {
+app.post("/exemplar", (req, res) => {
   const newSchemaExemplar = new examplarModel({
     book: req.body.book,
   });
@@ -132,10 +132,15 @@ app.post("/exemplar", async (req, res) => {
 });
 /********************************************************************/
 //to see the exemplar_list
-app.get("/exemplar", async (req, res) => {
+app.get("/exemplar", (req, res) => {
   let queryInput = req.query;
-  const allExemplar = await examplarModel.find(queryInput);
-  res.send(allExemplar);
+  examplarModel.find(queryInput, (err, result) => {
+    if (err) {
+      res.status(404).send(err.message);
+    } else {
+      res.status(200).send(result);
+    }
+  });
 });
 /********************************************************************/
 /*************************************RENT***************************/
