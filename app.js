@@ -198,19 +198,34 @@ app.delete("/exemplar/:id", (req, res) => {
 /********************************************************************/
 //to add a new Rent
 app.post("/rent", async (req, res) => {
-  const rentExemplar = new rentExemplarModel({
-    userID: req.headers["userid"],
-    bookExemplarID: req.body.bookExemplarID,
-    rentDate: new Date(),
-    rentActive: true,
-  });
-  await examplarModel.updateOne(
-    { _id: req.body.bookExemplarID },
-    { rentActive: true }
-  );
+  // to check if the ID and User ID valid
+  //check if the Exempler is in Rent
+  try {
+    let findID = await examplarModel.findById(req.body.bookExemplarID);
+    let isActive = await rentExemplarModel.find({bookExemplarID: req.body.bookExemplarID,rentActive: true,});
+    let userID = await userModel.findById(req.body.userID);
 
-  rentExemplar.save();
-  res.send("Thank you for renting");
+    if (_.isNull(findID)) {
+      res.status(404).send("Exempler ID is invalid");
+    } else if (_.isNull(userID)) {
+      res.status(404).send("User ID is not exist");
+    } else if (isActive.length != 0) {
+      res.status(404).send("Exempler is already in rent");
+    } else {
+      const rentExemplar = new rentExemplarModel({
+        userID: req.body.userID,
+        bookExemplarID: req.body.bookExemplarID,
+        rentDate: new Date(),
+        rentActive: true,
+      });
+
+      await rentExemplar.save();
+      console.log("a");
+      res.status(200).send("Rent Complete");
+    }
+  } catch (error) {
+    res.status(404).send(error.message);
+  }
 });
 /**********************************************************************/
 //to see the Rent_list
