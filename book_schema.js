@@ -3,10 +3,10 @@ import mongoose from "mongoose";
 //Book schema
 const bookSchema = new mongoose.Schema(
   {
-    author: String,
-    releaseDate: Number,
-    title: String,
-    numberOfPages: Number,
+    author: { type: String, required: true },
+    releaseDate: { type: Number, required: true },
+    title: { type: String, required: true },
+    numberOfPages: { type: Number, required: true },
   },
   {
     versionKey: false,
@@ -20,6 +20,7 @@ const bookExemplarSchema = new mongoose.Schema(
     book: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "bookModel",
+      required: true
     },
   },
   {
@@ -47,7 +48,7 @@ const rentExemplar = new mongoose.Schema(
   }
 );
 const rentExemplarModel = mongoose.model("rentExemplarModel", rentExemplar);
-//----------------------------------------------------------------
+//////////////////////////////////////////////////////////////
 const UserSchema = new mongoose.Schema(
   {
     name: {
@@ -62,5 +63,5 @@ const UserSchema = new mongoose.Schema(
   }
 );
 const userModel = mongoose.model("userModel", UserSchema);
-//////////////////////////////////////////////////////////////
+
 export { bookModel, examplarModel, rentExemplarModel, userModel };

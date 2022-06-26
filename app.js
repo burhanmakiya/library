@@ -155,13 +155,33 @@ app.get("/exemplar", (req, res) => {
 /************************************************************/
 //to remove Exemplar
 app.delete("/exemplar/:id", (req, res) => {
-  examplarModel.findByIdAndDelete(req.params.id, (err, removeResult) => {
+  examplarModel.find({ _id: req.params.id }, (err, findResult) => {
     if (err) {
       res.status(404).send(err.message);
-    } else if (removeResult == null) {
-      res.status(404).send("ID not found");
+    } else if (findResult.length == 0) {
+      res.status(404).send("Exempler ID not found");
     } else {
-      res.status(200).send("deleted");
+      rentExemplarModel.find(
+        { bookExemplarID: req.params.id },
+        function (err, result) {
+          if (err) {
+            res.status(404).send(err.message);
+          } else if (result.length == 0 || result[0].rentActive == false) {
+            examplarModel.deleteOne(
+              { _id: req.params.id },
+              function (err) {
+                if (err) {
+                  res.status(404).send(err.message);
+                } else {
+                  res.status(200).send("Exempler deleted");
+                }
+              }
+            );
+          } else {
+            res.status(404).send("rent Aktive");
+          }
+        }
+      );
     }
   });
 });
