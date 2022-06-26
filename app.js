@@ -137,8 +137,18 @@ app.post("/exemplar", (req, res) => {
   const newSchemaExemplar = new examplarModel({
     book: req.body.book,
   });
-  newSchemaExemplar.save();
-  res.send("the Exemplar has been successfully added");
+  bookModel.findById(req.body.book, function (err, result) {
+    if (err) {
+      res.status(404).send(err.message);
+    } else if (result == null) {
+      res.status(404).send("ID is Invalid");
+    } else {
+      newSchemaExemplar
+        .save()
+        .then(() => res.send("the Exemplar has been successfully added"))
+        .catch((err) => res.status(404).send(err.message));
+    }
+  });
 });
 /********************************************************************/
 //to see the exemplar_list
@@ -167,16 +177,13 @@ app.delete("/exemplar/:id", (req, res) => {
           if (err) {
             res.status(404).send(err.message);
           } else if (result.length == 0 || result[0].rentActive == false) {
-            examplarModel.deleteOne(
-              { _id: req.params.id },
-              function (err) {
-                if (err) {
-                  res.status(404).send(err.message);
-                } else {
-                  res.status(200).send("Exempler deleted");
-                }
+            examplarModel.deleteOne({ _id: req.params.id }, function (err) {
+              if (err) {
+                res.status(404).send(err.message);
+              } else {
+                res.status(200).send("Exempler deleted");
               }
-            );
+            });
           } else {
             res.status(404).send("rent Aktive");
           }
