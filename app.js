@@ -1,5 +1,5 @@
-import express from "express";
 import mongoose from "mongoose";
+import express from "express";
 import _, { result } from "underscore";
 import {
   bookModel,
@@ -202,7 +202,10 @@ app.post("/rent", async (req, res) => {
   //check if the Exempler is in Rent
   try {
     let findID = await examplarModel.findById(req.body.bookExemplarID);
-    let isActive = await rentExemplarModel.find({bookExemplarID: req.body.bookExemplarID,rentActive: true,});
+    let isActive = await rentExemplarModel.find({
+      bookExemplarID: req.body.bookExemplarID,
+      rentActive: true,
+    });
     let userID = await userModel.findById(req.body.userID);
 
     if (_.isNull(findID)) {
