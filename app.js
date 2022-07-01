@@ -1,12 +1,7 @@
 import mongoose from "mongoose";
 import express from "express";
 import _, { result } from "underscore";
-import {
-  bookModel,
-  examplarModel,
-  rentExemplarModel,
-  userModel,
-} from "./book_schema.js";
+import { bookModel, examplarModel, rentExemplarModel, userModel } from "./book_schema.js";
 const app = express();
 const port = 3000;
 app.use(express.json());
@@ -24,12 +19,7 @@ app.get("/books", async (req, res) => {
   const joinedBooksList = await mongoose.model("rentExemplarModel").aggregate([
     { $match: { rentActive: true } },
     {
-      $lookup: {
-        from: "examplarmodels",
-        localField: "bookExemplarID",
-        foreignField: "_id",
-        as: "result",
-      },
+      $lookup: { from: "examplarmodels", localField: "bookExemplarID", foreignField: "_id", as: "result" },
     },
   ]);
 
@@ -52,145 +42,120 @@ app.get("/books", async (req, res) => {
 });
 /********************************************************************/
 //to add a new book
-app.post("/books", (req, res) => {
-  //to save the Input in a Schema Model
-  const reqBodyInput = new bookModel({ ...req.body });
-  //to search if the Book is already exists
-  //if the Book is already exists the Adding prossses will stop
-  bookModel.find(req.body, (err, result) => {
-    if (err) {
-      res.status(404).send(err.message);
-    } else if (result.length == 0) {
-      reqBodyInput
-        .save()
-        .then(() => res.status(200).send("added successfully"))
-        .catch((err) => res.status(404).send(err.message));
+app.post("/books", async (req, res) => {
+  try {
+    //to save the Input in a Schema Model
+    const reqBodyInput = new bookModel({ ...req.body });
+    //to search if the Book is already exists
+    let findBook = await bookModel.find(req.body);
+    if (findBook.length == 0) {
+      await reqBodyInput.save();
+      res.status(200).send("added successfully");
     } else {
       res.status(404).send("already added");
     }
-  });
+  } catch (error) {
+    res.status(404).send(error.message);
+  }
 });
 /********************************************************************/
 // to remove a Book
-app.delete("/book/:id", (req, res) => {
-  // check if the Book has exemplars
-  // if not, then remove it
-  examplarModel.find({ book: req.params.id }, (err, resultFindEx) => {
-    if (err) {
-      res.status(404).send(err.message);
-    } else if (resultFindEx.length == 0) {
-      bookModel.findByIdAndDelete(req.params.id, (err, removeResult) => {
-        if (err) {
-          res.status(404).send(err.message);
-        } else if (removeResult == null) {
-          res.status(404).send("ID not found");
-        } else {
-          res.status(200).send("deleted");
-        }
-      });
+app.delete("/book/:id", async (req, res) => {
+  try {
+    // check if the Book has exemplars
+    let findExemplar = await examplarModel.find({ book: req.params.id });
+    if (findExemplar.length == 0) {
+      // find and delete the Book
+      let findBook = await bookModel.findByIdAndDelete(req.params.id);
+      if (findBook == null) {
+        res.status(404).send("ID not found");
+      } else {
+        res.status(200).send("deleted");
+      }
     } else {
       res.status(404).send("the Book has Exemplar");
     }
-  });
+  } catch (error) {
+    res.status(404).send(error.message);
+  }
 });
 /********************************************************************/
-//to edit a book
-app.put("/book/:id", function (req, res) {
-  const bodyInput = req.body;
-  //to check if the ID is valid
-  bookModel
-    .find({ _id: req.params.id })
-    .then(
-      (result) => {
-        // to join the inPut with the Target object
-        let mergedObjects = JSON.parse(
-          JSON.stringify(_.extend(result[0], bodyInput))
-        );
-        delete mergedObjects._id; // to remove the ID
-        bookModel.find(mergedObjects).then((result) => {
-          if (result.length == 0) {
-            bookModel
-              .updateOne({ _id: req.params.id }, { ...req.body })
-              .then(() => {
-                res.status(200).send("updatetd");
-              });
-          } else {
-            res.status(404).send("already exists");
-          }
-        });
-      },
-      (err) => {
-        console.log(err);
-        res.send(err.message);
+app.put("/book/:id", async (req, res) => {
+  try {
+    const bodyInput = req.body;
+    //to check if the ID is valid
+    let findID = await bookModel.findById(req.params.id);
+    if (findID == null) {
+      res.status(404).send("ID is invalid");
+    } else {
+      //join the inPut with the Target object
+      let mergedObjects = JSON.parse(JSON.stringify(_.extend(findID, bodyInput)));
+      delete mergedObjects._id; // to remove the ID
+      // check if the mergedObject is already exists in the database
+      let findObject = await bookModel.find(mergedObjects);
+      if (findObject.length == 0) {
+        await bookModel.updateOne({ _id: req.params.id }, { ...req.body });
+        res.status(200).send("updatetd");
+      } else {
+        res.status(404).send("already exists");
       }
-    )
-    .catch((er) => {
-      res.status(404).send(er.message);
-    });
+    }
+  } catch (error) {
+    res.status(404).send(error.message);
+  }
 });
 /********************************************************************/
 /********************************************************************/
 /********************************************************************/
 /**********************Exemplar**************************************/
 // to add an Exemplar
-app.post("/exemplar", (req, res) => {
-  const newSchemaExemplar = new examplarModel({
-    book: req.body.book,
-  });
-  bookModel.findById(req.body.book, function (err, result) {
-    if (err) {
-      res.status(404).send(err.message);
-    } else if (result == null) {
+app.post("/exemplar", async (req, res) => {
+  try {
+    const newSchemaExemplar = new examplarModel({ book: req.body.book });
+    let findID = await bookModel.findById(req.body.book);
+    if (findID == null) {
       res.status(404).send("ID is Invalid");
     } else {
-      newSchemaExemplar
-        .save()
-        .then(() => res.send("the Exemplar has been successfully added"))
-        .catch((err) => res.status(404).send(err.message));
+      await newSchemaExemplar.save();
+      res.send("the Exemplar has been added");
     }
-  });
+  } catch (error) {
+    res.status(404).send(error.message);
+  }
 });
 /********************************************************************/
 //to see the exemplar_list
-app.get("/exemplar", (req, res) => {
-  let queryInput = req.query;
-  examplarModel.find(queryInput, (err, result) => {
-    if (err) {
-      res.status(404).send(err.message);
-    } else {
-      res.status(200).send(result);
-    }
-  });
+app.get("/exemplar", async (req, res) => {
+  try {
+    let queryInput = req.query;
+    let exemplarFind = await examplarModel.find(queryInput);
+    res.status(200).send(exemplarFind);
+  } catch (error) {
+    res.status(404).send(error.message);
+  }
 });
 /************************************************************/
-//to remove Exemplar
-app.delete("/exemplar/:id", (req, res) => {
-  examplarModel.find({ _id: req.params.id }, (err, findResult) => {
-    if (err) {
-      res.status(404).send(err.message);
-    } else if (findResult.length == 0) {
+// //to remove Exemplar
+app.delete("/exemplar/:id", async (req, res) => {
+  try {
+    // check if the ID valid
+    let findID = await examplarModel.find({ _id: req.params.id });
+    if (findID.length == 0) {
       res.status(404).send("Exempler ID not found");
     } else {
-      rentExemplarModel.find(
-        { bookExemplarID: req.params.id },
-        function (err, result) {
-          if (err) {
-            res.status(404).send(err.message);
-          } else if (result.length == 0 || result[0].rentActive == false) {
-            examplarModel.deleteOne({ _id: req.params.id }, function (err) {
-              if (err) {
-                res.status(404).send(err.message);
-              } else {
-                res.status(200).send("Exempler deleted");
-              }
-            });
-          } else {
-            res.status(404).send("rent Aktive");
-          }
-        }
-      );
+      // to check if the ID in the Rent list, and if the rent aktive to do the delete operation
+      let findRentID = await rentExemplarModel.find({ bookExemplarID: req.params.id });
+
+      if (findRentID.length == 0 || findRentID[0].rentActive == false) {
+        await examplarModel.deleteOne({ _id: req.params.id });
+        res.status(200).send("Exempler deleted");
+      } else {
+        res.status(404).send("rent Aktive");
+      }
     }
-  });
+  } catch (error) {
+    res.status(404).send(error.message);
+  }
 });
 /********************************************************************/
 /*************************************RENT***************************/
@@ -202,15 +167,12 @@ app.post("/rent", async (req, res) => {
   //check if the Exempler is in Rent
   try {
     let findID = await examplarModel.findById(req.body.bookExemplarID);
-    let isActive = await rentExemplarModel.find({
-      bookExemplarID: req.body.bookExemplarID,
-      rentActive: true,
-    });
+    let isActive = await rentExemplarModel.find({ bookExemplarID: req.body.bookExemplarID, rentActive: true });
     let userID = await userModel.findById(req.body.userID);
 
-    if (_.isNull(findID)) {
+    if (findID == null) {
       res.status(404).send("Exempler ID is invalid");
-    } else if (_.isNull(userID)) {
+    } else if (null == userID) {
       res.status(404).send("User ID is not exist");
     } else if (isActive.length != 0) {
       res.status(404).send("Exempler is already in rent");
@@ -223,7 +185,6 @@ app.post("/rent", async (req, res) => {
       });
 
       await rentExemplar.save();
-      console.log("a");
       res.status(200).send("Rent Complete");
     }
   } catch (error) {
@@ -233,36 +194,28 @@ app.post("/rent", async (req, res) => {
 /**********************************************************************/
 //to see the Rent_list
 app.get("/rent", async (req, res) => {
-  let queryInput = req.query;
-  const allRent = await rentExemplarModel.find(queryInput);
-  res.send(allRent);
+  try {
+    let queryInput = req.query;
+    const allRent = await rentExemplarModel.find(queryInput);
+    res.send(allRent);
+  } catch (error) {
+    res.status(404).send(error.message);
+  }
 });
 /*********************************************************************/
 //to end the Rent
 app.post("/rent/end", async (req, res) => {
-  const rendID = { RendtID: req.body.RentID }.RendtID;
-  const rendProfile = await rentExemplarModel.find({ _id: rendID });
-
-  rentExemplarModel.updateOne({ _id: rendID }, { rentActive: false }).then(
-    () =>
-      examplarModel
-        .updateOne(
-          { _id: rendProfile[0].bookExemplarID },
-          { rentActive: false }
-        )
-
-        .then(
-          () => {
-            res.send("the rent has been ended successfully");
-          },
-          () => {
-            res.send("the rent has not ended in the Exemplar");
-          }
-        ),
-    () => {
-      res.send("the rent has not ended in the rent profile");
+  try {
+    const rentID = req.body.rentID;
+    const findRentProfile = await rentExemplarModel.findOneAndUpdate({ _id: rentID, rentActive: true }, { rentActive: false });
+    if (findRentProfile == null) {
+      res.status(404).send("ID not found or RENT Inactive");
+    } else {
+      res.status(200).send("rent has been ended successfully");
     }
-  );
+  } catch (error) {
+    res.status(404).send(error.message);
+  }
 });
 /********************************************************************/
 /***********************USER*****************************************/
