@@ -20,7 +20,7 @@ const bookExemplarSchema = new mongoose.Schema(
     book: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "bookModel",
-      required: true
+      required: true,
     },
   },
   {
@@ -35,10 +35,13 @@ const rentExemplar = new mongoose.Schema(
     userID: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "userModel",
+
+      required: true,
     },
     bookExemplarID: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "examplarModel",
+      required: true,
     },
     rentDate: Date,
     rentActive: "boolean",
@@ -52,10 +55,17 @@ const rentExemplarModel = mongoose.model("rentExemplarModel", rentExemplar);
 const UserSchema = new mongoose.Schema(
   {
     name: {
-      type: "string",
+      type: String,
+      trim: true,
+      lowercase: true,
+      required: true,
     },
     email: {
-      type: "string",
+      type: String,
+      unique: true,
+      trim: true,
+      lowercase: true,
+      required: true,
     },
   },
   {
